@@ -1,0 +1,49 @@
+---
+
+# Docker repository branch
+docker_repo: main
+# docker_repo: testing
+# docker_repo: experimental
+
+# Extra packages that have to be installed together with Docker
+docker_dependencies: "{{ default_docker_dependencies }}"
+
+# Docker swarm network can be define in order to be sure that
+# swarm cluster doesn't overlap with you infrastructure
+# docker_swarm_network: 10.10.8.0/24
+
+# You can set any interface, that is listened by docker engine.
+# e.g. docker_swarm_interface: "eth1"
+docker_swarm_interface: "{{ ansible_default_ipv4['interface'] }}"
+docker_swarm_addr: "{{ hostvars[inventory_hostname]['ansible_' + docker_swarm_interface]['ipv4']['address'] }}"
+docker_swarm_port: 2377
+docker_host_ip: [ "{{ ansible_default_ipv4['address'] }}" ]
+
+# List of the users in the Docker group
+docker_admin_users:
+  - "{{ ansible_user | default(ansible_user_id) }}" # if ansible_user is not defined, we default to the ansible ansible_user_id fact
+
+# Switches disabling the docker-engine, docker group and swarm-mode setup.
+skip_engine: False # if true, skip the docker engine installation
+skip_group: False  # if true, does not add the docker_admin_users to the docker_group_name
+skip_swarm: False  # if true, skip the swarm setup
+#skip_docker_py: False  if true, skip the docker-py
+skip_docker_py: True
+
+platform_network: haishen_platform_network
+
+docker_registry_hub_name: "registry.haishen.com"
+docker_registry_hub_port: "5000"
+
+docker_config_insecure_registries: [ "{{ docker_registry_hub_name }}:{{ docker_registry_hub_port }}" ]
+docker_config_host: [ "unix:///var/run/docker.sock" ]
+
+docker_config_common:
+  {
+    live-restore: false,
+    insecure-registries: "{{ docker_config_insecure_registries }}",
+    hosts: "{{ docker_config_host }}",
+    dns: "{{ docker_host_ip }}"
+  }
+
+docker_config_custom: {}

@@ -1,0 +1,97 @@
+---
+
+- name: Check if docker 18.03 is installed
+  command: rpm -q docker-ce-18.03.0.ce-1.el7.centos.x86_64
+  register: rpm_check
+  ignore_errors: yes
+
+- name: Import Docker APT public key.
+  apt_key:
+    keyserver: "{{ docker_pubkey_server }}"
+    id: "{{ docker_pubkey_id }}"
+    state: present
+  when: ansible_os_family == 'Debian'
+        and rpm_check.stdout.find('is not installed') != -1
+
+- name: Install yum-utils if necessary.
+  yum:
+    name: yum-utils
+    state: present
+  when: ansible_os_family == 'RedHat'
+        and rpm_check.stdout.find('is not installed') != -1
+
+- name: Install apt-transport-https if necessary.
+  apt:
+    name: apt-transport-https
+    state: present
+  when: ansible_os_family == 'Debian'
+        and rpm_check.stdout.find('is not installed') != -1
+
+- name: Add the YUM Docker repository.
+  yum_repository:
+    name: docker
+    description: Docker Repository
+    baseurl: "{{ docker_yum_repo }}"
+    gpgkey: "{{ docker_yum_gpgkey }}"
+    gpgcheck: yes
+  when: ansible_os_family == 'RedHat'
+        and rpm_check.stdout.find('is not installed') != -1
+
+- name: Add the APT Docker repository.
+  apt_repository:
+    repo: "{{ docker_apt_repo }}"
+    state: present
+    filename: 'docker'
+  when: ansible_os_family == 'Debian'
+        and rpm_check.stdout.find('is not installed') != -1
+
+- name: Install Docker dependencies.
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items: "{{ docker_dependencies }}"
+  when: rpm_check.stdout.find('is not installed') != -1
+
+- name: Install the Docker Engine.
+  package:
+    name: docker-engine
+    state: present
+  when: rpm_check.stdout.find('is not installed') != -1
+
+- name: create haishen data directory
+  file:
+    path: /haishen/data/conf
+    state: directory
+    mode: 0755
+    owner: root
+    group: root
+
+- name: create docker config directory
+  file:
+    path: /etc/docker
+    state: directory
+    mode: 0600
+    owner: root
+    group: root
+
+# configure docker deamon json file
+- name: configure docker daemon.json
+  template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    mode: 0400
+    owner: root
+    group: root
+
+- name: add myself to /etc/hosts
+  lineinfile:
+    dest: /etc/hosts
+    line: "{{ docker_registy_host }} {{ docker_registry_hub_name }}"
+    state: present
+
+- name: Enable the Docker daemon as a service and start it.
+  systemd:
+    state: restarted
+    daemon_reload: yes
+    enabled: yes
+    name: docker
